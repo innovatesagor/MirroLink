@@ -1,0 +1,74 @@
+MirroLink: Android-to-Mac Mirroring & Control
+MirroLink (working name) is an open-source tool for seamless Android screen mirroring and control on macOS over a USB-C cable. Once connected, the Android UI (lockscreen, home screen, apps) appears in real time on the Mac at Full-HD resolution. The host’s keyboard, mouse, and gamepad act as input devices for the phone, enabling full control. MirroLink works even if the Android screen is off or broken. It requires only USB debugging enabled on Android and no special app or root on the phone. The goal is a plug-and-play experience: connect a USB-C cable, enable debugging (if prompted), launch MirroLink on the Mac, and mirroring/control begins automatically.
+
+Key Features:
+- **Full-HD display mirroring**: Supports 1920×1080 (and higher) resolutions at 30–120 FPS (depending on device performance). Video is hardware-accelerated (H.264) for efficiency.
+- **Low latency, high performance**: Target latency is 35–70 ms, providing a local connection feel. No login, ads, or internet required.
+- **Complete remote control**: Mac’s keyboard and mouse simulate Android touchscreen and buttons (HID input). Keyboard shortcuts (e.g., right-click for BACK, middle-click for HOME) simplify navigation. Copy/paste between Mac and Android clipboards is supported. Gamepad controllers plugged into the Mac can also be forwarded to Android.
+- **Works with screen off/broken**: MirroLink functions even if the Android display is off, locked, or damaged.
+- **Plug-and-play USB-C**: Uses Android Debug Bridge (ADB) over USB-C; no app install or root is needed on Android. Just enable USB debugging in Developer Options. The Mac side auto-launches mirroring when a device is detected.
+- **Cross-platform**: While focused on macOS, MirroLink’s core approach (based on scrcpy) also works on Linux and Windows. Android 5.0 (API 21) or newer is required.
+- **Audio forwarding (optional)**: For Android 11+, audio output can be forwarded to the Mac (via USB).
+- **Recording & snapshots**: The Mac app can record the mirrored screen (H.264) to a file or capture screenshots.
+
+Setup & Installation:
+### Android Device Preparation
+1. **Enable Developer Mode**: On your Android phone/tablet, go to Settings > About phone, tap “Build Number” 7 times to unlock Developer Options.
+2. **Enable USB Debugging**: In Settings > System > Developer options, turn on USB debugging. (On some devices, you may also need USB debugging (Security Settings) to allow input injection.)
+3. **Connect USB-C**: Use a USB-C to USB-C (or USB-C to Lightning if needed) cable to connect the Android device to the Mac. Accept the “Allow USB debugging” trust dialog when prompted.
+
+### Mac (Host) Installation
+1. **Install Android Platform Tools**: Ensure ADB is available. On macOS, install via Homebrew:
+   ```bash
+   brew install --cask android-platform-tools
+   ```
+2. **Install MirroLink App**: Install via Homebrew:
+   ```bash
+   brew install scrcpy
+   ```
+   This installs the latest scrcpy release (Apache-2.0 licensed). MirroLink’s GitHub releases page will also offer downloadable macOS binaries.
+3. **Dependencies**: If building from source, install dependencies via Homebrew:
+   ```bash
+   brew install ffmpeg libusb sdl2 meson ninja
+   ```
+
+End-User Guide:
+1. **Launch MirroLink**: Start MirroLink on your Mac. A command-line utility or GUI window will appear.
+2. **Connect Device**: Plug your Android into the Mac. Mirroring should start automatically.
+3. **Control the Device**: Click/drag in the window to simulate touch. Type on the Mac keyboard to enter text. Right-click = Android BACK button; middle-click = HOME. Volume keys on the Mac keyboard map to Android volume.
+4. **Full-Screen Mode**: Use the Alt+F shortcut (⌥+F) or the menu to toggle fullscreen.
+5. **Copy & Paste**: Copy text on the Mac and paste it into Android, or vice versa.
+6. **Recording & Snapshots**: Use the MirroLink menu or run the `scrcpy --record file.mp4` command to record the screen.
+7. **Disconnecting**: Unplug the USB cable to close MirroLink.
+
+Developer Guide:
+### Source Code & License
+MirroLink is based on Genymobile’s scrcpy (Apache License 2.0). The codebase is modular and extensible, allowing developers to build, customize, or fork it freely.
+
+### Build System
+- **Meson & Ninja**: To build from source on macOS:
+  ```bash
+  meson setup build && ninja -C build
+  ```
+- **Dependencies**: Key libraries include FFmpeg (H.264 encoding/decoding), libusb (USB communication), and SDL2 (display/input). Install these via Homebrew.
+
+### Development Environment
+- **IDE**: Use Visual Studio Code with the C/C++ extension (by Microsoft) for IntelliSense and debugging. For Mac-specific code (e.g., a Cocoa/Swift GUI), use the Swift extension.
+- **Version Control**: Use Git for source control. Follow typical GitHub workflows: fork the repo, create a feature branch, and submit pull requests.
+- **Testing**: Automate testing with Android emulators or real devices in CI (e.g., GitHub Actions with macOS runners).
+
+### Contribution Guidelines
+- **Modularity**: The codebase is modular. For example, you can swap out the UI (e.g., create a new Qt or Electron frontend) without touching the streaming core.
+- **Extension Ideas**: Add features like wireless (TCP/IP) mirroring, multi-device support, custom input mappings, or AI integration (e.g., voice control of Android apps).
+
+### Example References
+- **scrcpy**: The scrcpy project is a prime reference implementation.
+- **Front-ends**: QtScrcpy (Qt/C++) or guiscrcpy show how to build GUIs on top of scrcpy.
+- **Homebrew Formula**: Homebrew’s formula for scrcpy documents its dependencies (ffmpeg, libusb, SDL2).
+
+Developer Workflow Example:
+1. Check out the scrcpy GitHub for an existing build setup and code structure.
+2. Adapt its `app/src` for Mac-specific UI if needed.
+3. Use VSCode’s Meson extension to compile.
+4. Run `adb devices` to verify your phone is visible.
+5. Run the MirroLink executable from the command line while debugging.
