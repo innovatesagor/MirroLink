@@ -15,12 +15,31 @@ public:
     Impl() : initialized(false), monitoring(false) {}
     
     bool initialize() {
-        if (libusb_init(nullptr) != 0) {
-            utils::throwSystemError("Failed to initialize libusb");
+        PERFORMANCE_SCOPE("DeviceManager::Initialize");
+        
+        try {
+            if (libusb_init(nullptr) != 0) {
+                utils::Logger::getInstance().error("Failed to initialize libusb: ", libusb_strerror(static_cast<libusb_error>(ret)));
+                return false;
+            }
+            initialized = true;
+
+            // Test ADB connection
+            try {
+                AdbCommand::execute("devices", false);
+            } catch (const utils::Error& e) {
+                utils::Logger::getInstance().error("ADB not available or not properly set up: ", e.what());
+                utils::Logger::getInstance().info("Please ensure Android SDK Platform Tools are installed and 'adb' is in PATH");
+                return false;
+            }
+
+            startMonitoring();
+            utils::Logger::getInstance().info("Device manager initialized successfully");
+            return true;
+        } catch (const std::exception& e) {
+            utils::Logger::getInstance().error("Unexpected error during device manager initialization: ", e.what());
+            return false;
         }
-        initialized = true;
-        startMonitoring();
-        return true;
     }
     
     ~Impl() {

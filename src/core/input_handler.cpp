@@ -227,7 +227,72 @@ public:
     }
     
     void sendGamepadEvent(const GamepadEvent& event) {
-        // TODO: Implement gamepad event forwarding
+        try {
+            // Map gamepad buttons to Android keycodes
+            std::string keycode;
+            switch (event.button) {
+                case 0: keycode = "KEYCODE_BUTTON_A"; break;     // A button
+                case 1: keycode = "KEYCODE_BUTTON_B"; break;     // B button
+                case 2: keycode = "KEYCODE_BUTTON_X"; break;     // X button
+                case 3: keycode = "KEYCODE_BUTTON_Y"; break;     // Y button
+                case 4: keycode = "KEYCODE_BUTTON_L1"; break;    // Left bumper
+                case 5: keycode = "KEYCODE_BUTTON_R1"; break;    // Right bumper
+                case 6: keycode = "KEYCODE_BUTTON_SELECT"; break;// Select/Back
+                case 7: keycode = "KEYCODE_BUTTON_START"; break; // Start
+                case 8: keycode = "KEYCODE_BUTTON_THUMBL"; break;// Left stick press
+                case 9: keycode = "KEYCODE_BUTTON_THUMBR"; break;// Right stick press
+                case 10: keycode = "KEYCODE_DPAD_UP"; break;    // D-pad up
+                case 11: keycode = "KEYCODE_DPAD_DOWN"; break;  // D-pad down
+                case 12: keycode = "KEYCODE_DPAD_LEFT"; break;  // D-pad left
+                case 13: keycode = "KEYCODE_DPAD_RIGHT"; break; // D-pad right
+                default: return;
+            }
+
+            // Handle analog inputs (sticks and triggers)
+            if (event.button >= 14) {
+                switch (event.button) {
+                    case 14: // Left stick X
+                        AdbCommand::execute("shell \"input mouse moveto " + 
+                            std::to_string(static_cast<int>((event.value + 1.0f) * screenWidth / 2)) + " " +
+                            std::to_string(static_cast<int>(currentY)) + "\"");
+                        return;
+                    case 15: // Left stick Y
+                        AdbCommand::execute("shell \"input mouse moveto " + 
+                            std::to_string(static_cast<int>(currentX)) + " " +
+                            std::to_string(static_cast<int>((event.value + 1.0f) * screenHeight / 2)) + "\"");
+                        return;
+                    case 16: // Right stick X
+                        // Map to horizontal scroll
+                        if (std::abs(event.value) > 0.2f) {
+                            AdbCommand::execute("shell input roll " + 
+                                std::to_string(static_cast<int>(event.value * 100)));
+                        }
+                        return;
+                    case 17: // Right stick Y
+                        // Map to vertical scroll
+                        if (std::abs(event.value) > 0.2f) {
+                            AdbCommand::execute("shell input roll " + 
+                                std::to_string(static_cast<int>(event.value * 100)));
+                        }
+                        return;
+                    case 18: // Left trigger
+                    case 19: // Right trigger
+                        // Map triggers to volume
+                        if (event.value > 0.8f) {
+                            AdbCommand::execute("shell input keyevent " + 
+                                std::string(event.button == 18 ? "KEYCODE_VOLUME_DOWN" : "KEYCODE_VOLUME_UP"));
+                        }
+                        return;
+                }
+            }
+
+            // Send digital button events
+            if (event.pressed) {
+                AdbCommand::execute("shell input keyevent " + keycode);
+            }
+        } catch (const utils::Error& e) {
+            utils::Logger::getInstance().error("Failed to send gamepad event: ", e.what());
+        }
     }
 
 private:
@@ -259,8 +324,10 @@ private:
     }
     
     std::map<uint32_t, std::string> keyMap;
-    int screenWidth = 1080;  // Default width
-    int screenHeight = 1920; // Default height
+    float currentX = 0;
+    float currentY = 0;
+    int screenWidth = 1920;  // Default, should be updated with actual screen size
+    int screenHeight = 1080; // Default, should be updated with actual screen size
 };
 
 // Public interface implementation

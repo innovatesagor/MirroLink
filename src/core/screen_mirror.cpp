@@ -22,18 +22,52 @@ public:
     }
     
     bool start(const ScreenConfig& config) {
+        PERFORMANCE_SCOPE("ScreenMirror::Start");
+
         if (active) {
-            return false;
+            utils::Logger::getInstance().warn("Screen mirror already active, stopping previous session");
+            stop();
         }
         
-        currentConfig = config;
-        if (!setupAdbForward() || !initializeEncoder()) {
+        try {
+            currentConfig = config;
+            
+            // Validate configuration
+            if (config.width <= 0 || config.height <= 0) {
+                utils::Logger::getInstance().error("Invalid resolution: ", config.width, "x", config.height);
+                return false;
+            }
+            if (config.maxFps <= 0 || config.maxFps > 120) {
+                utils::Logger::getInstance().error("Invalid FPS setting: ", config.maxFps);
+                return false;
+            }
+            
+            if (!setupAdbForward()) {
+                utils::Logger::getInstance().error("Failed to set up ADB forwarding");
+                return false;
+            }
+            
+            utils::Logger::getInstance().debug("ADB forwarding set up successfully");
+            
+            if (!initializeEncoder()) {
+                utils::Logger::getInstance().error("Failed to initialize video encoder");
+                cleanupAdbForward();
+                return false;
+            }
+            
+            utils::Logger::getInstance().debug("Video encoder initialized successfully");
+            
+            active = true;
+            captureThread = std::thread(&Impl::captureLoop, this);
+            utils::Logger::getInstance().info("Screen mirroring started with config: ",
+                config.width, "x", config.height, " @ ", config.maxFps, "fps");
+            return true;
+            
+        } catch (const std::exception& e) {
+            utils::Logger::getInstance().error("Unexpected error during screen mirror start: ", e.what());
+            cleanup();
             return false;
         }
-        
-        active = true;
-        captureThread = std::thread(&Impl::captureLoop, this);
-        return true;
     }
     
     void stop() {
@@ -46,8 +80,7 @@ public:
             captureThread.join();
         }
         
-        cleanupEncoder();
-        cleanupAdbForward();
+        cleanup();
     }
     
     void setFrameCallback(FrameCallback cb) {
@@ -177,56 +210,146 @@ private:
         }
     }
     
+    bool initializeRecording(const std::string& path) {
+        if (recording) {
+            return false;
+        }
+
+        // Initialize output format context
+        avformat_alloc_output_context2(&formatContext, nullptr, nullptr, path.c_str());
+        if (!formatContext) {
+            utils::Logger::getInstance().error("Could not create output context");
+            return false;
+        }
+
+        // Add video stream
+        stream = avformat_new_stream(formatContext, codec);
+        if (!stream) {
+            utils::Logger::getInstance().error("Could not create video stream");
+            cleanupRecording();
+            return false;
+        }
+
+        // Configure stream
+        stream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+        stream->codecpar->codec_id = AV_CODEC_ID_H264;
+        stream->codecpar->width = currentConfig.width;
+        stream->codecpar->height = currentConfig.height;
+        stream->codecpar->format = AV_PIX_FMT_YUV420P;
+        stream->time_base = (AVRational){1, currentConfig.maxFps};
+
+        // Open output file
+        if (avio_open(&formatContext->pb, path.c_str(), AVIO_FLAG_WRITE) < 0) {
+            utils::Logger::getInstance().error("Could not open output file");
+            cleanupRecording();
+            return false;
+        }
+
+        // Write header
+        if (avformat_write_header(formatContext, nullptr) < 0) {
+            utils::Logger::getInstance().error("Could not write header");
+            cleanupRecording();
+            return false;
+        }
+
+        recordingStartTime = std::chrono::steady_clock::now();
+        return true;
+    }
+
+    void cleanupRecording() {
+        if (formatContext) {
+            if (formatContext->pb) {
+                av_write_trailer(formatContext);
+                avio_closep(&formatContext->pb);
+            }
+            avformat_free_context(formatContext);
+            formatContext = nullptr;
+        }
+        stream = nullptr;
+    }
+    
     void captureLoop() {
-        // Connect to scrcpy server
+        PERFORMANCE_SCOPE("ScreenMirror::CaptureLoop");
+        
         int sockfd = connectToServer();
         if (sockfd < 0) {
             utils::Logger::getInstance().error("Failed to connect to scrcpy server");
             return;
         }
         
+        utils::Logger::getInstance().debug("Connected to scrcpy server successfully");
+        
         AVPacket* packet = av_packet_alloc();
         AVFrame* frame = av_frame_alloc();
         
+        // Track frame statistics for performance monitoring
+        int frameCount = 0;
+        auto lastStatsTime = std::chrono::steady_clock::now();
+        
         while (active) {
-            // Read video packet from socket
-            if (!readVideoPacket(sockfd, packet)) {
-                continue;
-            }
-            
-            // Decode video frame
-            if (avcodec_send_packet(codecContext, packet) < 0) {
-                continue;
-            }
-            
-            if (avcodec_receive_frame(codecContext, frame) < 0) {
-                continue;
-            }
-            
-            // Convert YUV to RGBA
-            FrameData frameData;
-            frameData.width = currentConfig.width;
-            frameData.height = currentConfig.height;
-            frameData.format = AV_PIX_FMT_RGBA;
-            frameData.timestamp = frame->pts;
-            frameData.data.resize(currentConfig.width * currentConfig.height * 4);
-            
-            uint8_t* destSlice[] = { frameData.data.data() };
-            int destStride[] = { currentConfig.width * 4 };
-            
-            sws_scale(swsContext, frame->data, frame->linesize, 0,
-                     currentConfig.height, destSlice, destStride);
-            
-            // Notify callback
-            std::lock_guard<std::mutex> lock(callbackMutex);
-            if (frameCallback) {
-                frameCallback(frameData);
+            try {
+                // Read video packet from socket
+                if (!readVideoPacket(sockfd, packet)) {
+                    utils::Logger::getInstance().warn("Failed to read video packet, retrying...");
+                    continue;
+                }
+                
+                // Decode video frame
+                if (avcodec_send_packet(codecContext, packet) < 0) {
+                    utils::Logger::getInstance().warn("Failed to send packet to decoder");
+                    continue;
+                }
+                
+                if (avcodec_receive_frame(codecContext, frame) < 0) {
+                    utils::Logger::getInstance().warn("Failed to receive frame from decoder");
+                    continue;
+                }
+                
+                frameCount++;
+                auto now = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - lastStatsTime);
+                
+                // Log performance stats every 5 seconds
+                if (duration.count() >= 5) {
+                    float fps = frameCount / static_cast<float>(duration.count());
+                    utils::Logger::getInstance().debug("Mirroring performance: ", 
+                        fps, " FPS, Frame size: ", frame->width, "x", frame->height);
+                    
+                    frameCount = 0;
+                    lastStatsTime = now;
+                }
+                
+                // Convert YUV to RGBA
+                FrameData frameData;
+                frameData.width = currentConfig.width;
+                frameData.height = currentConfig.height;
+                frameData.format = AV_PIX_FMT_RGBA;
+                frameData.timestamp = frame->pts;
+                frameData.data.resize(currentConfig.width * currentConfig.height * 4);
+                
+                uint8_t* destSlice[] = { frameData.data.data() };
+                int destStride[] = { currentConfig.width * 4 };
+                
+                sws_scale(swsContext, frame->data, frame->linesize, 0,
+                         currentConfig.height, destSlice, destStride);
+                
+                // Notify callback
+                std::lock_guard<std::mutex> lock(callbackMutex);
+                if (frameCallback) {
+                    frameCallback(frameData);
+                }
+                
+            } catch (const std::exception& e) {
+                utils::Logger::getInstance().error("Error in capture loop: ", e.what());
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
         }
         
         av_frame_free(&frame);
         av_packet_free(&packet);
         close(sockfd);
+        
+        utils::Logger::getInstance().info("Screen mirroring stopped");
     }
     
     int connectToServer() {
@@ -287,6 +410,12 @@ private:
         return true;
     }
     
+    void cleanup() {
+        cleanupEncoder();
+        cleanupAdbForward();
+        active = false;
+    }
+    
     std::atomic<bool> active;
     std::atomic<bool> recording;
     std::thread captureThread;
@@ -299,6 +428,11 @@ private:
     const AVCodec* codec{nullptr};
     AVCodecContext* codecContext{nullptr};
     SwsContext* swsContext{nullptr};
+
+    // Recording components
+    AVFormatContext* formatContext{nullptr};
+    AVStream* stream{nullptr};
+    std::chrono::steady_clock::time_point recordingStartTime;
 };
 
 // Public interface implementation
