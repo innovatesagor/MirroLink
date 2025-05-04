@@ -1,58 +1,131 @@
-# MirroLink: Android-to-Mac Mirroring & Control
+# MirroLink
 
-**MirroLink** is a cutting-edge, open-source tool that enables seamless Android screen mirroring and control on macOS via a USB-C cable. With MirroLink, you can view and interact with your Android device directly from your Mac, even if the Android screen is off, locked, or broken. Designed for simplicity, privacy, and high performance, MirroLink is the ultimate plug-and-play solution for Android-to-Mac integration.
+MirroLink is an open-source Android screen mirroring and control tool for macOS. It enables high-performance, low-latency screen mirroring and full device control over USB-C, with no app installation required on the Android device.
 
----
+## Features
 
-## 🔑 Key Features
+- **Full-HD Display Mirroring**: 1080p+ resolution at 30-120 FPS with hardware acceleration
+- **Low Latency**: 35-70ms latency for responsive control
+- **Complete Remote Control**: Use your Mac's keyboard and mouse to control Android
+- **No Root Required**: Works with standard Android USB debugging
+- **Audio Forwarding**: Stream Android audio to Mac (Android 11+)
+- **Recording & Screenshots**: Capture screen recordings and snapshots
+- **Plug-and-Play**: Just connect USB-C and enable debugging
 
-- **Full-HD Display Mirroring**: Supports resolutions of **1920×1080** (or higher) at **30–120 FPS**, with hardware-accelerated (H.264) video encoding for smooth visuals.
-- **Ultra-Low Latency**: Achieves latency as low as **35–70 ms**, ensuring a responsive and fluid experience for video playback, gaming, and more.
-- **Complete Remote Control**: Use your Mac’s **keyboard**, **mouse**, or **gamepad** to simulate Android touchscreen and button inputs. Navigate effortlessly with keyboard shortcuts like right-click for BACK and middle-click for HOME.
-- **Clipboard Sync**: Copy and paste text seamlessly between your Mac and Android device.
-- **Works with Screen Off/Broken**: Control your Android device even if the screen is off, locked, or damaged, making it ideal for troubleshooting or recovering data.
-- **Plug-and-Play USB-C**: No app installation or root access required. Simply enable USB Debugging on Android, connect via USB-C, and start mirroring instantly.
-- **Audio Forwarding**: For Android 11+, forward audio output to your Mac via USB for a complete multimedia experience.
-- **Recording & Snapshots**: Capture screenshots or record the mirrored screen directly on your Mac for easy sharing or documentation.
-- **Ad-Free & Private**: No ads, no accounts, and no internet connection required. Everything runs locally on your machine, ensuring complete privacy.
-- **Cross-Platform Core**: While optimized for macOS, MirroLink’s core (based on scrcpy) also works on Linux and Windows, offering flexibility across platforms.
-
----
-
-## 🚀 Getting Started
+## Quick Start
 
 ### Prerequisites
 
-1. **Android Device**:
-   - Android 5.0 (API 21) or newer.
-   - Enable USB Debugging:
-     - Go to `Settings > About Phone > Tap Build Number 7 times` to unlock Developer Options.
-     - Navigate to `Settings > Developer Options > Enable USB Debugging`.
-2. **Mac Computer**:
-   - Install Android Platform Tools (ADB) and MirroLink.
-3. **USB-C Cable**:
-   - Use a high-quality USB-C cable for the best performance.
-
----
+- macOS 12.0 or later
+- Android 5.0+ device with USB debugging enabled
+- USB-C cable (or appropriate adapter)
 
 ### Installation
 
-#### Step 1: Install Android Platform Tools
-Install ADB on macOS using Homebrew:
 ```bash
-brew install --cask android-platform-tools
+# Using Homebrew (Recommended)
+brew tap innovatesagor/mirrolink
+brew install mirrolink
+
+# Or build from source
+git clone https://github.com/innovatesagor/MirroLink.git
+cd MirroLink
+./scripts/setup.sh
 ```
 
-#### Step 2: Install MirroLink
-Install MirroLink (based on scrcpy) via Homebrew:
-```bash
-brew install scrcpy
-```
+### Basic Usage
 
-Alternatively, download the latest MirroLink release from the [GitHub repository](https://github.com/innovatesagor/MirroLink).
+1. Connect your Android device via USB-C
+2. Enable USB debugging on your Android device
+3. Launch MirroLink
+4. Start controlling your device from your Mac
 
-#### Step 3: Launch MirroLink
-Run MirroLink from the terminal:
-```bash
-mirrolink
-```
+## Key Bindings
+
+- **Mouse**: Click and drag to control touch input
+- **Right-click**: Back button
+- **Middle-click**: Home button
+- **F11**: Toggle fullscreen
+- **Ctrl+V**: Paste text from Mac clipboard
+- **Volume keys**: Control Android volume
+
+## Building from Source
+
+### Dependencies
+
+- Xcode Command Line Tools
+- Homebrew
+- FFmpeg
+- SDL2
+- libusb
+- Meson & Ninja
+
+### Build Steps
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/innovatesagor/MirroLink.git
+   cd MirroLink
+   ```
+
+2. Run the setup script:
+   ```bash
+   ./scripts/setup.sh
+   ```
+
+3. Build the project:
+   ```bash
+   ninja -C build
+   ```
+
+4. Run tests:
+   ```bash
+   ninja -C build test
+   ```
+
+### Development
+
+Check out our [Contributing Guide](docs/developer/CONTRIBUTING.md) for:
+- Code style guidelines
+- Build system details
+- Testing procedures
+- Pull request process
+
+## Troubleshooting
+
+See our [Installation Guide](docs/user/INSTALLATION.md) for detailed setup instructions and troubleshooting steps.
+
+Common issues:
+- Device not detected: Check USB debugging is enabled
+- Poor performance: Try lowering resolution/framerate
+- Input not working: Enable USB debugging (Security settings)
+
+## License
+
+MirroLink is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/developer/CONTRIBUTING.md) for details on:
+- Setting up the development environment
+- Code style guidelines
+- Pull request process
+- Testing requirements
+
+## Acknowledgments
+
+MirroLink builds upon several open-source projects:
+- [scrcpy](https://github.com/Genymobile/scrcpy)
+- FFmpeg
+- SDL2
+- libusb
+
+## Support
+
+- GitHub Issues: Bug reports and feature requests
+- [Discord Community](https://discord.gg/mirrolink)
+- [Documentation](docs/)
+
+## Security
+
+For security issues, please email security@mirrolink.dev instead of using the public issue tracker.
